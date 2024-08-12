@@ -246,17 +246,35 @@ def main():
                                  title="Budget Distribution (User Adjusted)")
                 st.plotly_chart(fig_pie, use_container_width=True)
 
-                # 4. Budget Change Heatmap
-                fig_heatmap = go.Figure(data=go.Heatmap(
-                    z=[new_recommendations['percent_change'], new_recommendations['user_percent_change']],
-                    x=new_recommendations['name'],
-                    y=['Recommended', 'User Adjusted'],
-                    colorscale='RdYlGn',
-                    zmin=-20, zmax=20
-                ))
-                fig_heatmap.update_layout(title="Budget Change Heatmap", xaxis_title="Budget Units", yaxis_title="Change Type")
-                st.plotly_chart(fig_heatmap, use_container_width=True)
-
+                 # 4. Budget Change Heatmap (Updated)
+	        st.subheader("Budget Change Heatmap")
+	        
+	        # Prepare data for heatmap
+	        heatmap_data = new_recommendations[['name', 'percent_change', 'user_percent_change']].copy()
+	        heatmap_data = heatmap_data.sort_values('percent_change', ascending=False)  # Sort by percent_change
+	        
+	        fig_heatmap = go.Figure(data=go.Heatmap(
+	            z=heatmap_data[['percent_change', 'user_percent_change']].values.T,
+	            y=['Recommended', 'User Adjusted'],
+	            x=heatmap_data['name'],
+	            colorscale='RdYlGn',
+	            zmin=-20, zmax=20
+	        ))
+	        
+	        fig_heatmap.update_layout(
+	            title="Budget Change Heatmap",
+	            xaxis_title="Budget Units",
+	            yaxis_title="Change Type",
+	            height=max(400, len(heatmap_data) * 20),  # Adjust height based on number of items
+	            width=800,
+	            xaxis={'side': 'top'},  # Move x-axis labels to the top
+	            yaxis={'dtick': 1}  # Ensure both y-axis labels are shown
+	        )
+	        
+	        # Rotate x-axis labels for better readability
+	        fig_heatmap.update_xaxes(tickangle=45)
+	        
+	        st.plotly_chart(fig_heatmap, use_container_width=True)
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
             st.error("Please check your input data and try again.")
