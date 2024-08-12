@@ -115,6 +115,10 @@ def format_budget(value):
     """Format budget values in billions with 2 decimal places."""
     return f"{value / 1e9:.2f}B"
 
+def format_budget(value):
+    """Format budget values in billions with 2 decimal places."""
+    return f"{value:.2f}B"
+
 def main():
     st.set_page_config(layout="wide")  # Use wide layout for better visibility
     st.title("Budget Recommendation App")
@@ -126,6 +130,9 @@ def main():
     if analysis_file and budget_file:
         analysis_df = pd.read_csv(analysis_file)
         budget_df = pd.read_csv(budget_file)
+
+        # Ensure 'AMOUNT' column is numeric
+        budget_df['AMOUNT'] = pd.to_numeric(budget_df['AMOUNT'].str.replace(',', ''), errors='coerce')
 
         # Generate initial recommendations
         recommendations = generate_budget_recommendations(analysis_df, budget_df)
