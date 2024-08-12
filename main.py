@@ -3,6 +3,9 @@ import pandas as pd
 import numpy as np
 from scipy.optimize import minimize
 from sklearn.preprocessing import MinMaxScaler
+import plotly.express as px
+import plotly.graph_objects as go
+
 
 # Copy the generate_budget_recommendations function here
 def generate_budget_recommendations(df, original_budget_df):
@@ -122,15 +125,32 @@ def main():
         # Generate initial recommendations
         recommendations = generate_budget_recommendations(analysis_df, budget_df)
 
+        # Convert budget values from billions to millions
+        budget_columns = ['AMOUNT', 'recommended_budget']
+        recommendations[budget_columns] = recommendations[budget_columns] * 1000
+
+        # Sort recommendations from highest to lowest budget
+        recommendations = recommendations.sort_values('AMOUNT', ascending=False).reset_index(drop=True)
+
+        # Calculate percentage change
+        recommendations['percent_change'] = (recommendations['recommended_budget'] - recommendations['AMOUNT']) / recommendations['AMOUNT'] * 100
+
+        # Pagination
+        items_per_page = 10
+        num_pages = len(recommendations) // items_per_page + (1 if len(recommendations) % items_per_page > 0 else 0)
+        page = st.selectbox("Select page", range(1, num_pages + 1))
+        start_idx = (page - 1) * items_per_page
+        end_idx = start_idx + items_per_page
+
         st.subheader("Initial Recommendations")
-        st.dataframe(recommendations)
+        st.dataframe(recommendations.iloc[start_idx:end_idx][['name', 'AMOUNT', 'recommended_budget', 'percent_change']])
 
         # Allow user to adjust budgets
         st.subheader("Adjust Budgets")
         adjusted_budgets = {}
-        for _, row in recommendations.iterrows():
+        for _, row in recommendations.iloc[start_idx:end_idx].iterrows():
             adjusted_budget = st.slider(
-                f"Adjust budget for {row['name']}",
+                f"Adjust budget for {row['name']} (Million Baht)",
                 min_value=float(row['AMOUNT'] * 0.8),
                 max_value=float(row['AMOUNT'] * 1.2),
                 value=float(row['recommended_budget']),
@@ -147,21 +167,50 @@ def main():
 
             # Generate new recommendations
             new_recommendations = generate_budget_recommendations(analysis_df, budget_df)
+            new_recommendations[budget_columns] = new_recommendations[budget_columns] * 1000
             new_recommendations['user_adjusted_budget'] = merged_df['user_adjusted_budget']
+            new_recommendations['percent_change'] = (new_recommendations['recommended_budget'] - new_recommendations['AMOUNT']) / new_recommendations['AMOUNT'] * 100
+            new_recommendations['user_percent_change'] = (new_recommendations['user_adjusted_budget'] - new_recommendations['AMOUNT']) / new_recommendations['AMOUNT'] * 100
 
             st.subheader("Updated Recommendations")
-            st.dataframe(new_recommendations)
+            st.dataframe(new_recommendations.iloc[start_idx:end_idx][['name', 'AMOUNT', 'recommended_budget', 'user_adjusted_budget', 'percent_change', 'user_percent_change']])
 
-            # Show comparison
-            st.subheader("Budget Comparison")
-            comparison = new_recommendations[['name', 'AMOUNT', 'recommended_budget', 'user_adjusted_budget']]
-            comparison['difference'] = comparison['user_adjusted_budget'] - comparison['recommended_budget']
-            st.dataframe(comparison)
+            # Visualizations
+            st.subheader("Budget Visualizations")
 
-            # Visualize the differences
-            st.subheader("Budget Adjustment Visualization")
-            chart_data = comparison[['name', 'difference']]
-            st.bar_chart(chart_data.set_index('name'))
+            # 1. Budget Comparison Bar Chart
+            fig_comparison = px.bar(new_recommendations.iloc[start_idx:end_idx], 
+                                    x='name', 
+                                    y=['AMOUNT', 'recommended_budget', 'user_adjusted_budget'],
+                                    title="Budget Comparison",
+                                    labels={'value': 'Budget (Million Baht)', 'variable': 'Budget Type'},
+                                    barmode='group')
+            st.plotly_chart(fig_comparison)
+
+            # 2. Percentage Change Comparison
+            fig_percent = px.bar(new_recommendations.iloc[start_idx:end_idx], 
+                                 x='name', 
+                                 y=['percent_change', 'user_percent_change'],
+                                 title="Percentage Change Comparison",
+                                 labels={'value': 'Percentage Change', 'variable': 'Change Type'},
+                                 barmode='group')
+            st.plotly_chart(fig_percent)
+
+            # 3. Budget Distribution Pie Chart
+            fig_pie = px.pie(new_recommendations, values='user_adjusted_budget', names='name',
+                             title="Budget Distribution (User Adjusted)")
+            st.plotly_chart(fig_pie)
+
+            # 4. Budget Change Heatmap
+            fig_heatmap = go.Figure(data=go.Heatmap(
+                z=[new_recommendations['percent_change'], new_recommendations['user_percent_change']],
+                x=new_recommendations['name'],
+                y=['Recommended', 'User Adjusted'],
+                colorscale='RdYlGn',
+                zmin=-20, zmax=20
+            ))
+            fig_heatmap.update_layout(title="Budget Change Heatmap", xaxis_title="Budget Units", yaxis_title="Change Type")
+            st.plotly_chart(fig_heatmap)
 
 if __name__ == "__main__":
     main()
