@@ -111,7 +111,12 @@ def generate_budget_recommendations(df, original_budget_df):
 
 	return merged_df[['name', 'AMOUNT', 'recommended_budget', 'detailed_explanation', 'adjustment']]
 
+def format_budget(value):
+    """Format budget values in billions with 2 decimal places."""
+    return f"{value / 1e9:.2f}B"
+
 def main():
+    st.set_page_config(layout="wide")  # Use wide layout for better visibility
     st.title("Budget Recommendation App")
 
     # File uploaders
@@ -125,9 +130,9 @@ def main():
         # Generate initial recommendations
         recommendations = generate_budget_recommendations(analysis_df, budget_df)
 
-        # Convert budget values from billions to millions
+        # Convert budget values to billions
         budget_columns = ['AMOUNT', 'recommended_budget']
-        recommendations[budget_columns] = recommendations[budget_columns] * 1000
+        recommendations[budget_columns] = recommendations[budget_columns] / 1e9
 
         # Sort recommendations from highest to lowest budget
         recommendations = recommendations.sort_values('AMOUNT', ascending=False).reset_index(drop=True)
@@ -143,17 +148,22 @@ def main():
         end_idx = start_idx + items_per_page
 
         st.subheader("Initial Recommendations")
-        st.dataframe(recommendations.iloc[start_idx:end_idx][['name', 'AMOUNT', 'recommended_budget', 'percent_change']])
+        display_df = recommendations.iloc[start_idx:end_idx][['name', 'AMOUNT', 'recommended_budget', 'percent_change']].copy()
+        display_df['AMOUNT'] = display_df['AMOUNT'].apply(format_budget)
+        display_df['recommended_budget'] = display_df['recommended_budget'].apply(format_budget)
+        display_df['percent_change'] = display_df['percent_change'].apply(lambda x: f"{x:.2f}%")
+        st.table(display_df)
 
         # Allow user to adjust budgets
         st.subheader("Adjust Budgets")
         adjusted_budgets = {}
         for _, row in recommendations.iloc[start_idx:end_idx].iterrows():
             adjusted_budget = st.slider(
-                f"Adjust budget for {row['name']} (Million Baht)",
+                f"Adjust budget for {row['name']} (Billion Baht)",
                 min_value=float(row['AMOUNT'] * 0.8),
                 max_value=float(row['AMOUNT'] * 1.2),
                 value=float(row['recommended_budget']),
+                format="%.2f",
                 key=row['name']
             )
             adjusted_budgets[row['name']] = adjusted_budget
@@ -167,13 +177,19 @@ def main():
 
             # Generate new recommendations
             new_recommendations = generate_budget_recommendations(analysis_df, budget_df)
-            new_recommendations[budget_columns] = new_recommendations[budget_columns] * 1000
+            new_recommendations[budget_columns] = new_recommendations[budget_columns] / 1e9
             new_recommendations['user_adjusted_budget'] = merged_df['user_adjusted_budget']
             new_recommendations['percent_change'] = (new_recommendations['recommended_budget'] - new_recommendations['AMOUNT']) / new_recommendations['AMOUNT'] * 100
             new_recommendations['user_percent_change'] = (new_recommendations['user_adjusted_budget'] - new_recommendations['AMOUNT']) / new_recommendations['AMOUNT'] * 100
 
             st.subheader("Updated Recommendations")
-            st.dataframe(new_recommendations.iloc[start_idx:end_idx][['name', 'AMOUNT', 'recommended_budget', 'user_adjusted_budget', 'percent_change', 'user_percent_change']])
+            display_df = new_recommendations.iloc[start_idx:end_idx][['name', 'AMOUNT', 'recommended_budget', 'user_adjusted_budget', 'percent_change', 'user_percent_change']].copy()
+            display_df['AMOUNT'] = display_df['AMOUNT'].apply(format_budget)
+            display_df['recommended_budget'] = display_df['recommended_budget'].apply(format_budget)
+            display_df['user_adjusted_budget'] = display_df['user_adjusted_budget'].apply(format_budget)
+            display_df['percent_change'] = display_df['percent_change'].apply(lambda x: f"{x:.2f}%")
+            display_df['user_percent_change'] = display_df['user_percent_change'].apply(lambda x: f"{x:.2f}%")
+            st.table(display_df)
 
             # Visualizations
             st.subheader("Budget Visualizations")
@@ -183,9 +199,9 @@ def main():
                                     x='name', 
                                     y=['AMOUNT', 'recommended_budget', 'user_adjusted_budget'],
                                     title="Budget Comparison",
-                                    labels={'value': 'Budget (Million Baht)', 'variable': 'Budget Type'},
+                                    labels={'value': 'Budget (Billion Baht)', 'variable': 'Budget Type'},
                                     barmode='group')
-            st.plotly_chart(fig_comparison)
+            st.plotly_chart(fig_comparison, use_container_width=True)
 
             # 2. Percentage Change Comparison
             fig_percent = px.bar(new_recommendations.iloc[start_idx:end_idx], 
@@ -194,12 +210,12 @@ def main():
                                  title="Percentage Change Comparison",
                                  labels={'value': 'Percentage Change', 'variable': 'Change Type'},
                                  barmode='group')
-            st.plotly_chart(fig_percent)
+            st.plotly_chart(fig_percent, use_container_width=True)
 
             # 3. Budget Distribution Pie Chart
             fig_pie = px.pie(new_recommendations, values='user_adjusted_budget', names='name',
                              title="Budget Distribution (User Adjusted)")
-            st.plotly_chart(fig_pie)
+            st.plotly_chart(fig_pie, use_container_width=True)
 
             # 4. Budget Change Heatmap
             fig_heatmap = go.Figure(data=go.Heatmap(
@@ -210,7 +226,7 @@ def main():
                 zmin=-20, zmax=20
             ))
             fig_heatmap.update_layout(title="Budget Change Heatmap", xaxis_title="Budget Units", yaxis_title="Change Type")
-            st.plotly_chart(fig_heatmap)
+            st.plotly_chart(fig_heatmap, use_container_width=True)
 
 if __name__ == "__main__":
     main()
