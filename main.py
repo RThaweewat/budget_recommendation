@@ -113,10 +113,6 @@ def generate_budget_recommendations(df, original_budget_df):
 
 def format_budget(value):
     """Format budget values in billions with 2 decimal places."""
-    return f"{value / 1e9:.2f}B"
-
-def format_budget(value):
-    """Format budget values in billions with 2 decimal places."""
     return f"{value:.2f}B"
 
 def main():
